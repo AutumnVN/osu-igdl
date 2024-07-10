@@ -1,0 +1,46 @@
+<Project>
+    <PropertyGroup>
+        <CharacterSet>Unicode</CharacterSet>
+        <Configuration>Release</Configuration>
+        <ConfigurationType>DynamicLibrary</ConfigurationType>
+        <PlatformToolset>v143</PlatformToolset>
+        <ProjectGuid>{00000000-0000-0000-0000-000000000000}</ProjectGuid>
+        <TargetName>libEGL</TargetName>
+        <WholeProgramOptimization>true</WholeProgramOptimization>
+    </PropertyGroup>
+    <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+    <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+    <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+    <ItemDefinitionGroup>
+        <ClCompile>
+            <AdditionalIncludeDirectories>deps;deps\minhook;deps\imgui;deps\gl3w;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+            <DebugInformationFormat>None</DebugInformationFormat>
+            <Optimization>MinSpace</Optimization>
+            <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+        </ClCompile>
+        <Link>
+            <AdditionalDependencies>opengl32.lib;crypt32.lib;ws2_32.lib;deps\libs\MinHook.x86.lib;deps\libs\libcurl.x86.lib;deps\libs\zlib.x86.lib;%(AdditionalDependencies)</AdditionalDependencies>
+            <AdditionalOptions>/OPT:REF /OPT:ICF /NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
+        </Link>
+    </ItemDefinitionGroup>
+    <ItemGroup>
+        <ClCompile Include="config.cpp" />
+        <ClCompile Include="deps\gl3w\GL\gl3w.c" />
+        <ClCompile Include="deps\imgui\imgui.cpp" />
+        <ClCompile Include="deps\imgui\imgui_demo.cpp" />
+        <ClCompile Include="deps\imgui\imgui_draw.cpp" />
+        <ClCompile Include="deps\imgui\imgui_impl_opengl3.cpp" />
+        <ClCompile Include="deps\imgui\imgui_impl_win32.cpp" />
+        <ClCompile Include="deps\imgui\imgui_widgets.cpp" />
+        <ClCompile Include="dllhijack.cpp" />
+        <ClCompile Include="dllmain.cpp" />
+        <ClCompile Include="downloader.cpp" />
+        <ClCompile Include="hook.cpp" />
+        <ClCompile Include="logger.cpp" />
+        <ClCompile Include="map_db.cpp" />
+        <ClCompile Include="overlay.cpp" />
+        <ClCompile Include="rw_lock.cpp" />
+        <ClCompile Include="utils.cpp" />
+        <ProjectConfiguration Include="Release|Win32" />
+    </ItemGroup>
+</Project>
