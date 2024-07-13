@@ -7,9 +7,12 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <sstream>
+#include <windows.h>
 
 using namespace std;
 using namespace rapidjson;
+
+char Config::tosuPath[MAX_PATH] = "";
 
 void Config::LoadConfig() {
     ifstream ifs("igdl.cfg");
@@ -28,6 +31,8 @@ void Config::LoadConfig() {
     }
 
     if (d.HasMember("dontDownload")) DL::dontDownload = d["dontDownload"].GetBool();
+
+    if (d.HasMember("tosuPath")) strcpy_s(tosuPath, d["tosuPath"].GetString());
 }
 
 void Config::SaveConfig() {
@@ -43,6 +48,8 @@ void Config::SaveConfig() {
     writer.Int(DL::downloadType);
     writer.Key("dontDownload");
     writer.Bool(DL::dontDownload);
+    writer.Key("tosuPath");
+    writer.String(tosuPath);
     writer.EndObject();
     result = sb.GetString();
     ofs << result << endl;

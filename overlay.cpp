@@ -1,4 +1,5 @@
 #include "overlay.h"
+#include "config.h"
 #include "downloader.h"
 #include "hook.h"
 #include "map_db.h"
@@ -174,8 +175,12 @@ void Overlay::RenderOverlay(HDC hdc) {
         ImGui::Combo("##oszVersion1", &DL::downloadType, DL::DlTypeName, 2);
         ImGui::SameLine();
         HelpMarker("1. <Full> is full version.\n2. <No Video> doesn't contain video.");
-        // manual download
         ImGui::Separator();
+        // run tosu automatically
+        ImGui::Text("Run tosu silently with osu! automatically");
+        ImGui::InputTextWithHint("##input_tosu_path", "tosu.exe path", Config::tosuPath, IM_ARRAYSIZE(Config::tosuPath));
+        ImGui::Separator();
+        // manual download
         ImGui::Text("[ Manual Download ]");
         ImGui::SameLine();
         HelpMarker("bid and sid can be found in urls\n1. osu.ppy.sh/b/{bid}\n2. osu.ppy.sh/s/{sid}\n3. osu.ppy.sh/beatmapsets/{sid}#osu/{bid}\n4. osu.ppy.sh/beatmaps/{bid}");
