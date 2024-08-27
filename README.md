@@ -13,6 +13,10 @@ An in-game beatmap downloader overlay for [osu! stable](https://osu.ppy.sh/home/
 3. Open `osu!.exe` and press <kbd>Alt</kbd> + <kbd>M</kbd> to open the settings overlay
 4. (Optional) If you use [tosu](https://github.com/KotRikD/tosu), put in `tosu.exe` path in the settings to run it silently with `osu!` automatically
 
+## Known issues
+
+- Doesn't work with `Compatibility mode` enabled
+
 ## Credits
 
 [Original project](https://git.io/IngameDL)

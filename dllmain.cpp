@@ -10,11 +10,9 @@ PROCESS_INFORMATION TosuProcess = {0};
 
 VOID DllHijack(HMODULE hMod) {
     TCHAR tszDllPath[MAX_PATH] = {0};
-    LPWSTR tszDllNamePtr = nullptr;
     GetModuleFileName(hMod, tszDllPath, MAX_PATH);
-    tszDllNamePtr = PathFindFileName(tszDllPath);
     wcscat_s(tszDllPath, L".1");
-    SuperDllHijack(tszDllNamePtr, tszDllPath);
+    SuperDllHijack(L"libEGL.dll", tszDllPath);
 }
 
 void StartTosu() {
