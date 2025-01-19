@@ -72,7 +72,7 @@ void ParseOsuDB(string dbName) {
             fsRead(ifs, length);
 
             for (int k = 0; k < length; k++) {
-                fsPass(ifs, 1 + 4 + 1 + 8);
+                fsPass(ifs, 1 + 4 + 1 + 4);
             }
         }
 

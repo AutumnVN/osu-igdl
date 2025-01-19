@@ -64,6 +64,7 @@ CURLcode DL::CurlGetReq(const string url, string &response, const vector<string>
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&response);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 8000);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "osu!");
 
         res = curl_easy_perform(curl);
         if (res == CURLE_OK) {
@@ -102,6 +103,7 @@ CURLcode DL::CurlDownload(const string url, const string fileName, MyProgress *p
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, prog);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 8000);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "osu!");
 
         auto err = fopen_s(&fp, fileName.c_str(), "wb");
 
