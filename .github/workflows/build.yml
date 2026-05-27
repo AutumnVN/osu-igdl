@@ -15,10 +15,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: microsoft/setup-msbuild@v2
+    - uses: microsoft/setup-msbuild@v3
+      with:
+        vs-version: '17'
 
     - name: Build
-      run: msbuild igdl.vcxproj
+      run: msbuild igdl.vcxproj /p:Configuration=Release /p:PlatformToolset=v143
 
     - name: Release
       run: |

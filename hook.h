@@ -6,8 +6,9 @@
 typedef BOOL(__stdcall *_SwapBuffers)(HDC);
 typedef BOOL(__stdcall *_ShellExcuteExW)(LPSHELLEXECUTEINFOW);
 
-BOOL __stdcall InitPlugin(HDC hdc);
+BOOL __stdcall InitOverlay(HDC hdc);
 BOOL __stdcall DetourSwapBuffers(HDC hdc);
+BOOL __stdcall DetourShellExecuteExW(LPSHELLEXECUTEINFOW pExecinfo);
 
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 DWORD WINAPI MsgHookThread(LPVOID lpParam);

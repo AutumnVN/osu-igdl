@@ -15,7 +15,7 @@ An in-game beatmap downloader overlay for [osu! stable](https://osu.ppy.sh/home/
 
 ## Known issues
 
-- Doesn't work with `Compatibility mode` enabled
+- Overlay doesn't work with `Compatibility mode` enabled, but downloader should still work
 
 ## Credits
 

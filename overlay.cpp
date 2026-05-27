@@ -8,32 +8,100 @@ bool Overlay::showStatus = false;
 bool Overlay::showSetting = false;
 int Overlay::statusPinned = 1;
 
-void Overlay::InitOverlay(HDC hdc) {
-    PIXELFORMATDESCRIPTOR pfd =
-        {
-            sizeof(PIXELFORMATDESCRIPTOR),
-            1,
-            PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, // Flags
-            PFD_TYPE_RGBA,                                              // The kind of framebuffer. RGBA or palette.
-            32,                                                         // Colordepth of the framebuffer.
-            0, 0, 0, 0, 0, 0,                                           // Color bits ignored
-            0,                                                          // No alpha buffer
-            0,                                                          // Shift bit ignored
-            0,                                                          // No accumulation buff
-            0, 0, 0, 0,                                                 // Accum bits ignored
-            24,                                                         // Number of bits for the depthbuffer
-            8,                                                          // Number of bits for the stencilbuffer
-            0,                                                          // Number of Aux buffers in the framebuffer.
-            PFD_MAIN_PLANE,                                             // Main layer
-            0,                                                          // Reserved
-            0, 0, 0                                                     // Layer masks ignored
-        };
-    int pixelFormat = ChoosePixelFormat(hdc, &pfd);
-    SetPixelFormat(hdc, pixelFormat, &pfd);
-    HGLRC glContext = wglCreateContext(hdc);
-    gl3wInit();
+static bool g_initialized = false;
 
-    ImGui::CreateContext();
+bool Overlay::IsInitialized() {
+    return g_initialized;
+}
+
+static void DrawOverlayUi() {
+    // status window
+    if (Overlay::showStatus || Overlay::showSetting) {
+        ImGuiWindowFlags statusWindowFlag = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+
+        if (!Overlay::statusPinned) statusWindowFlag &= ~ImGuiWindowFlags_NoMove;
+
+        ImGui::SetNextWindowBgAlpha(0.8f);
+        ImGui::SetNextWindowPos(ImVec2(6.0f, 212.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin(STATUS_WINDOW_NAME, nullptr, statusWindowFlag);
+        DL::SetTaskReadLock();
+        auto keyIter = DL::tasks.begin();
+
+        if (keyIter == DL::tasks.end()) {
+            ImGui::Text("  Status: Idle");
+        } else {
+            while (keyIter != DL::tasks.end()) {
+                switch (keyIter->second.dlStatus) {
+                    case PARSE:
+                        ImGui::Text("  Status: Parsing %c", "|/-\\"[(int)(ImGui::GetTime() / 0.1f) & 3]);
+                        ImGui::Text("    Link: %s", keyIter->second.songName);
+                        break;
+                    case DOWNLOAD:
+                        ImGui::Text("  Status: Downloading %c", "|/-\\"[(int)(ImGui::GetTime() / 0.1f) & 3]);
+                        ImGui::Text("MapsetID: %lu", keyIter->second.sid);
+                        ImGui::Text("  Artist: %s", keyIter->second.artist.c_str());
+                        ImGui::Text("SongName: %s", keyIter->second.songName.c_str());
+                        ImGui::Text("Category: %s", keyIter->second.category.c_str());
+                        ImGui::Text("FileSize: %.2fMB / %.2fMB", keyIter->second.downloaded / 0x100000, keyIter->second.fileSize / 0x100000);
+                        ImGui::ProgressBar(keyIter->second.percent);
+                        break;
+                    default:
+                        ImGui::Text("  Status: Idle");
+                        break;
+                }
+
+                keyIter++;
+                if (keyIter != DL::tasks.end()) ImGui::Separator();
+            }
+        }
+
+        ImGui::End();
+        DL::UnsetTaskLock();
+    }
+
+    // setting window
+    if (Overlay::showSetting) {
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImVec2 viewportCenter = ImVec2(viewport->Pos.x + viewport->Size.x * 0.5f, viewport->Pos.y + viewport->Size.y * 0.5f);
+        ImGui::SetNextWindowPos(viewportCenter, ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
+        ImGui::Begin(SETTING_WINDOW_NAME, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize);
+        // downloader settings
+        ImGui::Checkbox("Disable in-game downloader", &DL::dontDownload);
+        ImGui::Text("- OSZ Version:");
+        ImGui::Combo("##oszVersion1", &DL::downloadType, DL::DlTypeName, 2);
+        ImGui::SameLine();
+        Overlay::HelpMarker("1. <Full> is full version.\n2. <No Video> doesn't contain video.");
+        ImGui::Separator();
+        // run tosu automatically
+        ImGui::Text("Run tosu silently with osu! automatically");
+        ImGui::InputTextWithHint("##input_tosu_path", "tosu.exe path", Config::tosuPath, IM_ARRAYSIZE(Config::tosuPath));
+        ImGui::Separator();
+        // manual download
+        ImGui::Text("[ Manual Download ]");
+        ImGui::SameLine();
+        Overlay::HelpMarker("bid and sid can be found in urls\n1. osu.ppy.sh/b/{bid}\n2. osu.ppy.sh/s/{sid}\n3. osu.ppy.sh/beatmapsets/{sid}#osu/{bid}\n4. osu.ppy.sh/beatmaps/{bid}");
+        ImGui::RadioButton("sid", &DL::manualDlType, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("bid", &DL::manualDlType, 1);
+        ImGui::InputTextWithHint("##input_song_id", "song id", DL::manualDlId, IM_ARRAYSIZE(DL::manualDlId));
+        ImGui::SameLine();
+
+        if (ImGui::Button("Download")) DL::ManualDownload(DL::manualDlId, DL::manualDlType);
+
+        ImGui::Separator();
+
+        if (ImGui::ButtonEx("Stop All Task", ImVec2(-1, 40))) {
+            HANDLE EndTaskThread = reinterpret_cast<HANDLE>(_beginthreadex(0, 0, [](void *pData) -> unsigned int {
+                    DL::StopAllTask();
+                    return 0; }, NULL, 0, NULL));
+
+            if (EndTaskThread) CloseHandle(EndTaskThread);
+        }
+        ImGui::End();
+    }
+}
+
+static void InitImGuiStyle() {
     ImGui::StyleColorsDark();
     ImGuiIO &io = ImGui::GetIO();
     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesDefault());
@@ -80,9 +148,42 @@ void Overlay::InitOverlay(HDC hdc) {
     style->Colors[ImGuiCol_PlotHistogram] = {0.90f, 0.70f, 0.00f, 1.00f};
     style->Colors[ImGuiCol_PlotHistogramHovered] = {1.00f, 0.60f, 0.00f, 1.00f};
     style->Colors[ImGuiCol_TextSelectedBg] = {0.18f, 0.39f, 0.79f, 0.90f};
+}
+
+void Overlay::InitOverlay(HDC hdc) {
+    if (g_initialized) return;
+
+    PIXELFORMATDESCRIPTOR pfd =
+        {
+            sizeof(PIXELFORMATDESCRIPTOR),
+            1,
+            PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, // Flags
+            PFD_TYPE_RGBA,                                              // The kind of framebuffer. RGBA or palette.
+            32,                                                         // Colordepth of the framebuffer.
+            0, 0, 0, 0, 0, 0,                                           // Color bits ignored
+            0,                                                          // No alpha buffer
+            0,                                                          // Shift bit ignored
+            0,                                                          // No accumulation buff
+            0, 0, 0, 0,                                                 // Accum bits ignored
+            24,                                                         // Number of bits for the depthbuffer
+            8,                                                          // Number of bits for the stencilbuffer
+            0,                                                          // Number of Aux buffers in the framebuffer.
+            PFD_MAIN_PLANE,                                             // Main layer
+            0,                                                          // Reserved
+            0, 0, 0                                                     // Layer masks ignored
+        };
+    int pixelFormat = ChoosePixelFormat(hdc, &pfd);
+    SetPixelFormat(hdc, pixelFormat, &pfd);
+    HGLRC glContext = wglCreateContext(hdc);
+    gl3wInit();
+
+    ImGui::CreateContext();
+    InitImGuiStyle();
     ImGui_ImplWin32_Init(WindowFromDC(hdc));
     ImGui_ImplOpenGL3_Init();
+    g_initialized = true;
 }
+
 
 bool Overlay::isShowingSettings() {
     return showSetting;
@@ -90,6 +191,7 @@ bool Overlay::isShowingSettings() {
 
 void Overlay::ReverseShowSettings() {
     showSetting = !showSetting;
+
     if (showSetting) {
         Hook::DisablRawInputDevices();
         ImGuiIO &io = ImGui::GetIO();
@@ -122,93 +224,23 @@ void Overlay::RenderOverlay(HDC hdc) {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    //===================== MY UI START =====================
-
-    // status window
-    if (showStatus || showSetting) {
-        ImGuiWindowFlags statusWindowFlag = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
-
-        if (!statusPinned) statusWindowFlag &= ~ImGuiWindowFlags_NoMove;
-
-        ImGui::Begin(STATUS_WINDOW_NAME, nullptr, ImVec2(0, 0), 0.8f, statusWindowFlag);
-        DL::SetTaskReadLock();
-        auto keyIter = DL::tasks.begin();
-
-        if (keyIter == DL::tasks.end()) {
-            ImGui::Text("  Status: Idle");
-        } else {
-            while (keyIter != DL::tasks.end()) {
-                switch (keyIter->second.dlStatus) {
-                    case PARSE:
-                        ImGui::Text("  Status: Parsing %c", "|/-\\"[(int)(ImGui::GetTime() / 0.1f) & 3]);
-                        ImGui::Text("    Link: %s", keyIter->second.songName);
-                        break;
-                    case DOWNLOAD:
-                        ImGui::Text("  Status: Downloading %c", "|/-\\"[(int)(ImGui::GetTime() / 0.1f) & 3]);
-                        ImGui::Text("MapsetID: %lu", keyIter->second.sid);
-                        ImGui::Text("  Artist: %s", keyIter->second.artist.c_str());
-                        ImGui::Text("SongName: %s", keyIter->second.songName.c_str());
-                        ImGui::Text("Category: %s", keyIter->second.category.c_str());
-                        ImGui::Text("FileSize: %.2fMB / %.2fMB", keyIter->second.downloaded / 0x100000, keyIter->second.fileSize / 0x100000);
-                        ImGui::ProgressBar(keyIter->second.percent);
-                        break;
-                    default:
-                        ImGui::Text("  Status: Idle");
-                        break;
-                }
-
-                keyIter++;
-                if (keyIter != DL::tasks.end()) ImGui::Separator();
-            }
-        }
-
-        ImGui::End();
-        DL::UnsetTaskLock();
-    }
-
-    // setting window
-    if (showSetting) {
-        ImGui::Begin(SETTING_WINDOW_NAME, nullptr, ImVec2(0, 0), -1, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize);
-        // downloader settings
-        ImGui::Checkbox("Disable in-game downloader", &DL::dontDownload);
-        ImGui::Text("- OSZ Version:");
-        ImGui::Combo("##oszVersion1", &DL::downloadType, DL::DlTypeName, 2);
-        ImGui::SameLine();
-        HelpMarker("1. <Full> is full version.\n2. <No Video> doesn't contain video.");
-        ImGui::Separator();
-        // run tosu automatically
-        ImGui::Text("Run tosu silently with osu! automatically");
-        ImGui::InputTextWithHint("##input_tosu_path", "tosu.exe path", Config::tosuPath, IM_ARRAYSIZE(Config::tosuPath));
-        ImGui::Separator();
-        // manual download
-        ImGui::Text("[ Manual Download ]");
-        ImGui::SameLine();
-        HelpMarker("bid and sid can be found in urls\n1. osu.ppy.sh/b/{bid}\n2. osu.ppy.sh/s/{sid}\n3. osu.ppy.sh/beatmapsets/{sid}#osu/{bid}\n4. osu.ppy.sh/beatmaps/{bid}");
-        ImGui::RadioButton("sid", &DL::manualDlType, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("bid", &DL::manualDlType, 1);
-        ImGui::InputTextWithHint("##input_song_id", "song id", DL::manualDlId, IM_ARRAYSIZE(DL::manualDlId));
-        ImGui::SameLine();
-
-        if (ImGui::Button("Download")) DL::ManualDownload(DL::manualDlId, DL::manualDlType);
-
-        ImGui::Separator();
-
-        if (ImGui::ButtonEx("Stop All Task", ImVec2(-1, 40))) {
-            HANDLE EndTaskThread = reinterpret_cast<HANDLE>(_beginthreadex(0, 0, [](void *pData) -> unsigned int {
-                    DL::StopAllTask();
-                    return 0; }, NULL, 0, NULL));
-
-            if (EndTaskThread) CloseHandle(EndTaskThread);
-        }
-        ImGui::End();
-    }
-
-    //===================== MY UI END =====================
+    DrawOverlayUi();
 
     ImGui::Render();
     ImGuiIO &io = ImGui::GetIO();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void Overlay::ShutdownOverlay() {
+    if (!g_initialized) return;
+
+    if (ImGui::GetCurrentContext()) {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+    }
+
+    g_initialized = false;
 }
 
 void Overlay::HelpMarker(const char *desc) {

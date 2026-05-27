@@ -21,6 +21,8 @@ namespace Overlay {
     bool isShowingStatus();
     void ShowStatus();
     void HideStatus();
+    bool IsInitialized();
     void InitOverlay(HDC hdc);
     void RenderOverlay(HDC hdc);
+    void ShutdownOverlay();
 }

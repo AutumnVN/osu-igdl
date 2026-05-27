@@ -17,22 +17,60 @@ _ShellExcuteExW Hook::OriShellExecuteExW = nullptr;
 _ShellExcuteExW Hook::BakShellExecuteExW = nullptr;
 HHOOK Hook::msgHook = nullptr;
 HWND Hook::hwnd = NULL;
+bool g_shellHookInstalled = false;
+bool g_databaseInitialized = false;
 
-BOOL __stdcall InitPlugin(HDC hdc) {
-    // hook msg for ingame overlay
-    Hook::hwnd = WindowFromDC(hdc);
-    DWORD tid = GetCurrentThreadId();
-    CreateThread(NULL, NULL, MsgHookThread, &tid, 0, NULL);
-    // init overlay
-    Overlay::InitOverlay(hdc);
-    // init sid database
-    HANDLE InitDatabaseThread = reinterpret_cast<HANDLE>(_beginthreadex(0, 0, [](void *pData) -> unsigned int {
+static void InitDatabase() {
+    if (g_databaseInitialized) return;
+
+    g_databaseInitialized = true;
+    HANDLE initDatabaseThread = reinterpret_cast<HANDLE>(_beginthreadex(0, 0, [](void *pData) -> unsigned int {
             DB::InitDataBase("osu!.db");
             return 0; }, NULL, 0, NULL));
-    if (InitDatabaseThread) CloseHandle(InitDatabaseThread);
+    if (initDatabaseThread) {
+        CloseHandle(initDatabaseThread);
+    } else {
+        g_databaseInitialized = false;
+        logger::WriteLog("[-] Create database init thread failed");
+    }
+}
+
+static void StartMessageHook(HWND hwnd) {
+    DWORD tid = GetWindowThreadProcessId(hwnd, NULL);
+    if (!tid) {
+        tid = GetCurrentThreadId();
+    }
+    DWORD *threadId = new DWORD(tid);
+    CreateThread(NULL, NULL, MsgHookThread, threadId, 0, NULL);
+}
+
+static int InstallShellExecuteHook() {
+    if (g_shellHookInstalled) return 0;
+
+    if (MH_CreateHookApiEx(L"shell32", "ShellExecuteExW", DetourShellExecuteExW, (LPVOID *)&Hook::OriShellExecuteExW, (LPVOID *)&Hook::BakShellExecuteExW) != MH_OK) {
+        logger::WriteLog("[-] Can't hook shell32.ShellExecuteExW");
+        return 1;
+    }
+
+    if (MH_EnableHook(Hook::BakShellExecuteExW) != MH_OK) {
+        logger::WriteLog("[-] Enable hook shell32.ShellExecuteExW fail");
+        return 2;
+    }
+
+    g_shellHookInstalled = true;
+    return 0;
+}
+
+BOOL __stdcall InitOverlay(HDC hdc) {
+    // hook msg for ingame overlay
+    Hook::hwnd = WindowFromDC(hdc);
+    StartMessageHook(Hook::hwnd);
+    // init overlay
+    Overlay::InitOverlay(hdc);
     // rehook swapbuffer
     Hook::ReHookSwapBuffers();
-    logger::WriteLog("[+] Init Plugin Done");
+    logger::WriteLog("[+] Init overlay success");
+
     return Hook::OriSwapBuffers(hdc);
 }
 
@@ -184,6 +222,7 @@ LRESULT CALLBACK GetMsgProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
 DWORD WINAPI MsgHookThread(LPVOID lpParam) {
     DWORD Tid = *(DWORD *)lpParam;
+    delete (DWORD *)lpParam;
     Hook::msgHook = SetWindowsHookEx(WH_GETMESSAGE, GetMsgProc, GetModuleHandle(NULL), Tid);
 
     if (!Hook::msgHook) {
@@ -298,12 +337,7 @@ int Hook::ReHookSwapBuffers() {
         return 2;
     }
 
-    if (MH_CreateHookApiEx(L"shell32", "ShellExecuteExW", DetourShellExecuteExW, (LPVOID *)&OriShellExecuteExW, (LPVOID *)&BakShellExecuteExW) != MH_OK) {
-        logger::WriteLog("[-] ReHook: Create new hook fail");
-        return 2;
-    }
-
-    if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {
+    if (MH_EnableHook(BakOriSwapBuffers) != MH_OK) {
         logger::WriteLog("[-] ReHook: Enable new hook fail");
         return 3;
     }
@@ -318,7 +352,10 @@ int Hook::InitHook() {
         return 1;
     }
 
-    if (MH_CreateHookApiEx(L"gdi32", "SwapBuffers", InitPlugin, (LPVOID *)&OriSwapBuffers, (LPVOID *)&BakOriSwapBuffers) != MH_OK) {
+    InstallShellExecuteHook();
+    InitDatabase();
+
+    if (MH_CreateHookApiEx(L"gdi32", "SwapBuffers", InitOverlay, (LPVOID *)&OriSwapBuffers, (LPVOID *)&BakOriSwapBuffers) != MH_OK) {
         logger::WriteLog("[-] MinHook: Can't hook gdi32.SwapBuffers");
         return 1;
     }
@@ -336,6 +373,8 @@ int Hook::UninitHook() {
     if (Hook::msgHook) {
         UnhookWindowsHookEx(Hook::msgHook);
     }
+
+    Overlay::ShutdownOverlay();
 
     if (MH_Uninitialize() != MH_OK) {
         logger::WriteLog("[-] MinHook uninitialize fail");
