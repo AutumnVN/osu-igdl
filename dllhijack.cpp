@@ -59,7 +59,7 @@ PEB_LDR_DATA *NtGetPebLdr(void *peb) {
     }
 }
 
-void SuperDllHijack(LPCWSTR dllname, LPWSTR OrigDllPath) {
+int SuperDllHijack(LPCWSTR dllname, LPWSTR OrigDllPath) {
     WCHAR wszDllName[100] = {0};
     void *peb = NtCurrentPeb();
     PEB_LDR_DATA *ldr = NtGetPebLdr(peb);
@@ -72,8 +72,12 @@ void SuperDllHijack(LPCWSTR dllname, LPWSTR OrigDllPath) {
 
         if (!_wcsicmp(wszDllName, dllname)) {
             HMODULE hMod = LoadLibrary(OrigDllPath);
+            if (!hMod) {
+                return 1;
+            }
             data->DllBase = hMod;
             break;
         }
     }
+    return 0;
 }

@@ -2,4 +2,4 @@
 
 #include <windows.h>
 
-void SuperDllHijack(LPCWSTR dllname, LPWSTR OrigDllPath);
+int SuperDllHijack(LPCWSTR dllname, LPWSTR OrigDllPath);

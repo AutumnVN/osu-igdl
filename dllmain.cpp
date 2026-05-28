@@ -4,15 +4,35 @@
 #include "logger.h"
 #include "shlwapi.h"
 #include <windows.h>
+#include <process.h>
 #pragma comment(lib, "shlwapi")
 
 PROCESS_INFORMATION TosuProcess = {0};
 
 VOID DllHijack(HMODULE hMod) {
-    TCHAR tszDllPath[MAX_PATH] = {0};
-    GetModuleFileName(hMod, tszDllPath, MAX_PATH);
+    WCHAR tszModulePath[MAX_PATH] = {0};
+    GetModuleFileNameW(hMod, tszModulePath, MAX_PATH);
+
+    WCHAR tszDllPath[MAX_PATH] = {0};
+    wcscpy_s(tszDllPath, tszModulePath);
     wcscat_s(tszDllPath, L".1");
-    SuperDllHijack(L"libEGL.dll", tszDllPath);
+
+    WCHAR *pFileName = wcsrchr(tszModulePath, L'\\');
+    WCHAR tszModuleName[MAX_PATH] = {0};
+    if (pFileName) {
+        wcscpy_s(tszModuleName, pFileName + 1);
+    } else {
+        wcscpy_s(tszModuleName, tszModulePath);
+    }
+
+    if (SuperDllHijack(tszModuleName, tszDllPath)) {
+        GetSystemDirectoryW(tszDllPath, MAX_PATH);
+        wcscat_s(tszDllPath, L"\\");
+        wcscat_s(tszDllPath, tszModuleName);
+        if (SuperDllHijack(tszModuleName, tszDllPath)) {
+            logger::WriteLog("[-] Can't load original dll");
+        }
+    }
 }
 
 void StartTosu() {
